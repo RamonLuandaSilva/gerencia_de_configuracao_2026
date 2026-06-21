@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Receitas</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+
+<div class="container mt-4">
+
+<a href="/logout" class="btn btn-secondary mb-3">Sair</a>
+
+<h2 class="mb-4">Gerenciamento de Receitas</h2>
+
+<div class="card p-3 mb-4">
+  <input id="id" type="hidden">
+  <div class="row gy-2">
+    <div class="col-md-3"><input id="nome" class="form-control" placeholder="Nome"></div>
+    <div class="col-md-3"><input id="descricao" class="form-control" placeholder="Descrição"></div>
+    <div class="col-md-2"><input id="custo" class="form-control" placeholder="Custo"></div>
+    <div class="col-md-2">
+      <select id="tipo" class="form-select">
+        <option value="doce">Doce</option>
+        <option value="salgada">Salgada</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-success w-100" onclick="salvar()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mb-4">
+  <div class="row gy-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Status</label>
+      <select id="filterStatus" class="form-select" onchange="carregar()">
+        <option value="">Todos</option>
+        <option value="doce">Doce</option>
+        <option value="salgada">Salgada</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Data</label>
+      <input id="filterDate" type="date" class="form-control" onchange="carregar()">
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-outline-primary w-100" onclick="exportarPdf()">Exportar PDF</button>
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-outline-secondary w-100" onclick="limpar()">Limpar formulário</button>
+    </div>
+  </div>
+</div>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Descrição</th>
+      <th>Custo</th>
+      <th>Tipo</th>
+      <th>Data</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody id="tabela"></tbody>
+</table>
+
+</div>
+
+<script>
+function carregar() {
+  const status = document.getElementById('filterStatus').value;
+  const date = document.getElementById('filterDate').value;
+
+  const query = [];
+  if (status) query.push(`status=${encodeURIComponent(status)}`);
+  if (date) query.push(`date=${encodeURIComponent(date)}`);
+
+  fetch('/receitas' + (query.length ? `?${query.join('&')}` : ''))
+    .then(res => {
+      if (res.status === 401) {
+        window.location = '/index.html';
+        return;
+      }
+      return res.json();
+    })
+    .then(data => {
+      const tabela = document.getElementById('tabela');
+      tabela.innerHTML = '';
+
+      data.forEach(r => {
+        tabela.innerHTML += `
+          <tr>
+            <td>${r.nome}</td>
+            <td>${r.descricao}</td>
+            <td>${r.custo}</td>
+            <td>${r.tipo_receita}</td>
+            <td>${r.data_registro}</td>
+            <td>
+              <button class="btn btn-warning btn-sm" onclick='editar(${JSON.stringify(r)})'>Editar</button>
+              <button class="btn btn-danger btn-sm" onclick='deletar(${r.id})'>Excluir</button>
+            </td>
+          </tr>`;
+      });
+    });
+}
+
+function salvar() {
+  const id = document.getElementById('id').value;
+
+  const dados = {
+    nome: nome.value,
+    descricao: descricao.value,
+    custo: custo.value,
+    tipo_receita: tipo.value
+  };
+
+  fetch(id ? `/receitas/${id}` : '/receitas', {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados)
+  }).then(() => {
+    limpar();
+    carregar();
+  });
+}
+
+function editar(r) {
+  id.value = r.id;
+  nome.value = r.nome;
+  descricao.value = r.descricao;
+  custo.value = r.custo;
+  tipo.value = r.tipo_receita;
+}
+
+function deletar(id) {
+  fetch(`/receitas/${id}`, { method: 'DELETE' })
+    .then(() => carregar());
+}
+
+function limpar() {
+  id.value = '';
+  nome.value = '';
+  descricao.value = '';
+  custo.value = '';
+  tipo.value = 'doce';
+}
+
+function exportarPdf() {
+  const status = document.getElementById('filterStatus').value;
+  const date = document.getElementById('filterDate').value;
+
+  const query = [];
+  if (status) query.push(`status=${encodeURIComponent(status)}`);
+  if (date) query.push(`date=${encodeURIComponent(date)}`);
+
+  window.location = '/receitas/export/pdf' + (query.length ? `?${query.join('&')}` : '');
+}
+
+carregar();
+</script>
+
+</body>
+</html>
