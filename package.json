@@ -4,6 +4,7 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
+        "migrate": "node migrate.js",
         "test": "jest --runInBand"
     },
     "dependencies": {

@@ -1,48 +1,6 @@
-const express = require('express');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 const { getReceitas } = require('./db');
-
-function createEmailTransport() {
-  if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    return require('nodemailer').createTransport({
-      host: process.env.EMAIL_HOST,
-      port: Number(process.env.EMAIL_PORT || 587),
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-  }
-
-  return require('nodemailer').createTransport({
-    jsonTransport: true
-  });
-}
-
-function sendNotificationEmail(transport, action, receita) {
-  if (!transport) {
-    return Promise.resolve();
-  }
-
-  const subject = `Receita ${action}: ${receita.nome}`;
-  const html = `
-    <h2>Receita ${action}</h2>
-    <p><strong>Nome:</strong> ${receita.nome}</p>
-    <p><strong>Descrição:</strong> ${receita.descricao}</p>
-    <p><strong>Custo:</strong> ${receita.custo}</p>
-    <p><strong>Tipo:</strong> ${receita.tipo_receita}</p>
-    <p><strong>Data de registro:</strong> ${receita.data_registro}</p>
-  `;
-
-  return transport.sendMail({
-    from: process.env.EMAIL_FROM || 'no-reply@example.com',
-    to: process.env.EMAIL_TO || 'admin@example.com',
-    subject,
-    html
-  });
-}
 
 function auth(req, res, next) {
   if (req.session.user) {
@@ -146,7 +104,7 @@ function registerRoutes(app, db, transport) {
         const insertedId = this.lastID;
         db.get('SELECT * FROM receita WHERE id = ?', [insertedId], async (err, receita) => {
           if (!err && receita) {
-            await sendNotificationEmail(transport, 'criada', receita).catch(() => {});
+            await transport.sendNotification('criada', receita).catch(() => {});
           }
           res.sendStatus(200);
         });
@@ -164,7 +122,7 @@ function registerRoutes(app, db, transport) {
 
         db.get('SELECT * FROM receita WHERE id = ?', [req.params.id], async (err, receita) => {
           if (!err && receita) {
-            await sendNotificationEmail(transport, 'atualizada', receita).catch(() => {});
+            await transport.sendNotification('atualizada', receita).catch(() => {});
           }
           res.sendStatus(200);
         });
@@ -182,7 +140,5 @@ function registerRoutes(app, db, transport) {
 }
 
 module.exports = {
-  createEmailTransport,
-  sendNotificationEmail,
   registerRoutes
 };

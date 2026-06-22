@@ -1,11 +1,12 @@
 const express = require('express');
 const session = require('express-session');
 const { createDb, initDb, buildReceitaQuery, getReceitas } = require('./db');
-const { registerRoutes, createEmailTransport } = require('./routes');
+const { registerRoutes } = require('./routes');
+const Mailer = require('./mailer');
 
 function createApp(options = {}) {
   const db = options.db || createDb();
-  const transport = options.transport || createEmailTransport();
+  const mailer = options.mailer || new Mailer({ transport: options.transport });
   const app = express();
 
   app.use(express.urlencoded({ extended: true }));
@@ -19,16 +20,16 @@ function createApp(options = {}) {
 
   app.use(express.static('public'));
 
-  registerRoutes(app, db, transport);
+  registerRoutes(app, db, mailer);
 
   return app;
 }
 
 module.exports = {
   createDb,
-  createEmailTransport,
   createApp,
   initDb,
   buildReceitaQuery,
-  getReceitas
+  getReceitas,
+  Mailer
 };
