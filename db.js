@@ -1,4 +1,9 @@
+const fs = require('fs');
+const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+
+const migrationsDir = path.join(__dirname, 'migrations');
+const migrationsTable = 'schema_version';
 
 function createDb(filename = process.env.DB_FILE || './database.db') {
   return new sqlite3.Database(filename);
@@ -42,63 +47,84 @@ function getReceitas(db, filters = {}) {
   });
 }
 
-// initDb provides a bootstrap schema and default data for local usage.
-// For production migration workflows (Flyway, Liquibase, etc.), replace or augment this
-// initialization with a migration-based mechanism.
-function initDb(db) {
+function ensureMigrationsTable(db) {
   return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      db.run(`CREATE TABLE IF NOT EXISTS usuario (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT,
-        login TEXT,
-        senha TEXT,
-        situacao TEXT
-      )`);
+    db.run(`CREATE TABLE IF NOT EXISTS ${migrationsTable} (
+      version TEXT PRIMARY KEY,
+      description TEXT,
+      installed_on TEXT NOT NULL DEFAULT (datetime('now'))
+    )`, err => err ? reject(err) : resolve());
+  });
+}
 
-      db.run(`CREATE TABLE IF NOT EXISTS receita (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT,
-        descricao TEXT,
-        data_registro TEXT,
-        custo REAL,
-        tipo_receita TEXT
-      )`);
+function getMigrationFiles() {
+  if (!fs.existsSync(migrationsDir)) {
+    return [];
+  }
 
-      db.run(`INSERT INTO usuario (nome, login, senha, situacao)
-              SELECT 'Admin', 'admin', '123', 'ativo'
-              WHERE NOT EXISTS (SELECT 1 FROM usuario)`);
+  return fs.readdirSync(migrationsDir)
+    .filter(name => /^V\d+__.*\.sql$/.test(name))
+    .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+}
 
-      const receitas = [
-        ['Coxinha', 'Salgado de frango', 5.5, 'salgada'],
-        ['Brigadeiro', 'Doce de chocolate', 2.0, 'doce'],
-        ['Pastel', 'Carne', 6.0, 'salgada'],
-        ['Beijinho', 'Doce de coco', 2.5, 'doce'],
-        ['Empada', 'Frango', 7.0, 'salgada'],
-        ['Pudim', 'Leite condensado', 8.0, 'doce'],
-        ['Esfirra', 'Carne', 4.0, 'salgada'],
-        ['Quindim', 'Coco e ovo', 3.0, 'doce'],
-        ['Kibe', 'Carne', 5.0, 'salgada'],
-        ['Bolo', 'Chocolate', 10.0, 'doce']
-      ];
-
-      receitas.forEach(r => {
-        db.run(`INSERT INTO receita (nome, descricao, data_registro, custo, tipo_receita)
-                SELECT ?, ?, datetime('now'), ?, ?
-                WHERE NOT EXISTS (
-                  SELECT 1 FROM receita WHERE nome = ?
-                )`,
-          [...r, r[0]]);
-      });
-
-      resolve();
+function getAppliedMigrationVersions(db) {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT version FROM ${migrationsTable}`, (err, rows) => {
+      if (err) {
+        return reject(err);
+      }
+      const applied = new Set(rows.map(row => row.version));
+      resolve(applied);
     });
   });
+}
+
+function migrationVersion(fileName) {
+  return fileName.replace(/\.sql$/i, '');
+}
+
+function migrationDescription(fileName) {
+  const parts = fileName.split('__');
+  return parts[1] ? parts[1].replace(/\.sql$/i, '').replace(/_/g, ' ') : '';
+}
+
+function runSqlFile(db, filePath) {
+  return new Promise((resolve, reject) => {
+    const sql = fs.readFileSync(filePath, 'utf8');
+    db.exec(sql, err => err ? reject(err) : resolve());
+  });
+}
+
+function applyMigration(db, fileName) {
+  const version = migrationVersion(fileName);
+  const description = migrationDescription(fileName);
+  const filePath = path.join(migrationsDir, fileName);
+
+  return runSqlFile(db, filePath)
+    .then(() => new Promise((resolve, reject) => {
+      db.run(`INSERT INTO ${migrationsTable} (version, description) VALUES (?, ?)`,
+        [version, description], err => err ? reject(err) : resolve());
+    }));
+}
+
+function runMigrations(db) {
+  return ensureMigrationsTable(db)
+    .then(() => getAppliedMigrationVersions(db))
+    .then(applied => {
+      const files = getMigrationFiles();
+      const pending = files.filter(file => !applied.has(migrationVersion(file)));
+      return pending.reduce((promise, file) => promise.then(() => applyMigration(db, file)), Promise.resolve());
+    });
+}
+
+function initDb(db) {
+  return runMigrations(db);
 }
 
 module.exports = {
   createDb,
   buildReceitaQuery,
   getReceitas,
-  initDb
+  initDb,
+  runMigrations
 };
