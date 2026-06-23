@@ -1,6 +1,6 @@
 const { createApp, createDb, initDb, Mailer } = require('./app');
 
-const db = createDb('./database.db');
+const db = createDb();
 const mailer = new Mailer();
 const app = createApp({ db, mailer });
 
