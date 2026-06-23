@@ -1,5 +1,5 @@
 const request = require('supertest');
-const sqlite3 = require('sqlite3').verbose();
+// const sqlite3 = require('sqlite3').verbose();
 const {
   createDb,
   createApp,
@@ -26,14 +26,14 @@ function getDb(db, sql, params = []) {
   });
 }
 
-function allDb(db, sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) return reject(err);
-      resolve(rows);
-    });
-  });
-}
+// function allDb(db, sql, params = []) {
+//   return new Promise((resolve, reject) => {
+//     db.all(sql, params, (err, rows) => {
+//       if (err) return reject(err);
+//       resolve(rows);
+//     });
+//   });
+// }
 
 describe('Receitas App', () => {
   let db;
