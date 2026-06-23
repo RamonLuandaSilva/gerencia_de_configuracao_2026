@@ -1,4 +1,4 @@
 CREATE TABLE IF NOT EXISTS ah (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  descricao TEXT,
+  descricao TEXT
 );
