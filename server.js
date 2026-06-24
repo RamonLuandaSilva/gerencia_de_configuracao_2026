@@ -5,7 +5,7 @@ const mailer = new Mailer();
 const app = createApp({ db, mailer });
 
 // TODO: Isso aqui quebra a pipeline
-const ahsdah = 1;
+// const ahsdah = 1;
 
 initDb(db).then(() => {
   app.listen(3000, () => {
